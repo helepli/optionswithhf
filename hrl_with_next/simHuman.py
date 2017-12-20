@@ -1,4 +1,4 @@
-
+import random
 
 height = 29
 width = 27
@@ -29,8 +29,11 @@ def humanProbas(state, option): # for policy shaping with simulated human feedba
         else:
             # Bottom, go to the goal
             probas[4 + 4] = 1.0
-   
-    return probas
+    
+    if random.random() < 0.1:
+        return probas
+    else:
+        return None
 
 def humanfeedback1(option, state, timestep):    
     if option != -1 and timestep == 1: # sort of feedback on the options. Only one feedback at the very beginning of the option.

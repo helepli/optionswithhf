@@ -35,7 +35,7 @@ class Experience(object):
             (self.state, self.ocurrent, self.oallowed, self.action, self.reward, self.interrupt)
 
 class Learner(object):
-    def __init__(self, args, f_next, f_sub, f_alias, policy, shaping, humanfeedback):
+    def __init__(self, args, f_next, f_sub, f_alias, policy, shaping, humanfeedback, humanProbas):
         """ Construct a Learner from parsed arguments
         """
 
@@ -44,6 +44,7 @@ class Learner(object):
         self._policy = policy
         self._shaping = shaping
         self._humanfeedback = humanfeedback
+        self._humanProbas = humanProbas
         self._render = args.render
         self._lstm = args.lstm
 
@@ -132,15 +133,19 @@ class Learner(object):
         # over options and an "end" signal
         state = keras.layers.Input(shape=self.make_shape(num_state_var))
         ocurrent = keras.layers.Input(shape=self.make_shape(self._num_options))
+        humanProbas = keras.layers.Input(shape=(self._total_actions,))     # put human proba as input of the NN for policy shaping
+        
         oallowed = keras.layers.Input(shape=(self._total_actions,))              # Mask for options that are allowed to run
-
+        
+        
+        stateoptionhumanprobas = keras.layers.concatenate([state, ocurrent, humanProbas]) # let's concantenate these three inputs: state, current option and human probas over the actions&options
         stateoption = keras.layers.concatenate([state, ocurrent])
-        pi = make_function(stateoption, self._total_actions, 'linear')          # Option to execute given current state and option
+        pi = make_function(stateoptionhumanprobas, self._total_actions, 'linear')          # Option to execute given current state and option and human probas
         probas = keras.layers.core.Lambda(make_probas, output_shape=(self._total_actions,), arguments={'oallowed': oallowed})(pi)
-        critic = make_function(stateoption, 1, 'linear')                        # Expected value of a state-action
+        critic = make_function(stateoption, 1, 'linear')                        # Expected value of a state-action -> do we put human proba in that too???
 
-        self._model = keras.models.Model(inputs=[state, ocurrent, oallowed], outputs=[probas])
-        self._critic = keras.models.Model(inputs=[state, ocurrent], outputs=[critic])
+        self._model = keras.models.Model(inputs=[state, ocurrent, humanProbas, oallowed], outputs=[probas])
+        self._critic = keras.models.Model(inputs=[state, ocurrent], outputs=[critic])   #-> do we put human proba in that too???
 
         # Compile model with Policy Gradient loss
         print("Compiling model", end="")
@@ -174,13 +179,14 @@ class Learner(object):
         """ Return a probability distribution over options (and a terminal signal)
             based on an observation from the environment and the current option
         """
-        observation, ocurrent, oallowed = state
+        observation, ocurrent, oallowed, humanProbas = state # !!!!!!!!!!!!!!!!!!!!!
 
         # Compute the allowed option mask
         output = self._model.predict_on_batch([
             observation[None, :],
             ocurrent[None, :],
-            oallowed[None, :]
+            oallowed[None, :],
+            humanProbas[None, :]   # !!!!!!!!!!!!!!!!!!!!!!
         ])
         critic = self._critic.predict_on_batch([
             observation[None, :],
@@ -203,6 +209,7 @@ class Learner(object):
         target_option = np.zeros((N, self._total_actions))
         source_ocurrent = np.zeros((N,) + self.make_shape(self._num_options))
         source_oallowed = np.zeros((N, self._total_actions))
+        source_humanProbas = np.zeros((N, self._total_actions))   # !!!!!!!!!!!!
         source_state = np.zeros((N,) + self.make_shape(self._state_vars))
 
         source_critic_ocurrent = np.zeros((N,) + self.make_shape(self._num_options))
@@ -230,9 +237,10 @@ class Learner(object):
             else:
                 value = cumulative_rewards[i] - e.value     # Use value as a baseline return -> R_t - baseline
 
-            state, ocurrent, oallowed = e.state  
+            state, ocurrent, oallowed, humanProbas = e.state  # !!!!!!!!!!!!!!!!!
 
             source_oallowed[i, :] = oallowed
+            source_humanProbas[i, :] = humanProbas    # !!!!!!!!!!!!!!!!!!!
             source_state[i, :] = state
             source_ocurrent[i, :] = ocurrent
             target_option[i, e.action] = value
@@ -245,7 +253,7 @@ class Learner(object):
 
         # Train the neural network
         self._model.fit(
-            [source_state, source_ocurrent, source_oallowed],
+            [source_state, source_ocurrent, source_oallowed, source_humanProbas],   # !!!!!!!!!!!!!!!!!
             [target_option],
             batch_size=N,
             epochs=1,
@@ -287,7 +295,7 @@ class Learner(object):
 
         return oallowed
 
-    def make_state(self, state, ocurrent, oallowed):
+    def make_state(self, state, ocurrent, oallowed, humanProbas):
         """ Return a list of states (if LSTM) or just <state> (no LSTM)
         """
         if self._lstm:
@@ -303,9 +311,9 @@ class Learner(object):
                 l_state[i] = s
                 l_ocurrent[i] = oc
 
-            return (l_state, l_ocurrent, oallowed)
+            return (l_state, l_ocurrent, oallowed, humanProbas)
         else:
-            return (state, ocurrent, oallowed)
+            return (state, ocurrent, oallowed, humanProbas)
 
     def execute_option(self, ocurrent_index, recur=0, env_state=None):
         """ Execute an option on the environment
@@ -348,8 +356,14 @@ class Learner(object):
             old_env_state = env_state
             ignored_reward = 0.0
             oallowed = self.make_oallowed(allowed_indices)
-
-            state = self.make_state(self.encode_state(env_state), ocurrent, oallowed)
+            
+            humanProbas = self._humanProbas(env_state, ocurrent_index) # human policy shaping from simHuman.py, vector of (#actions + #options) *2
+            if humanProbas == None:
+                humanProbas = [1.0/self._total_actions] * self._total_actions
+            humanProbas = np.array(humanProbas)
+            
+            
+            state = self.make_state(self.encode_state(env_state), ocurrent, oallowed, humanProbas) # ---> humanprobas put in state, then put in NN
             overriden = False
 
             policy_probas = self._policy(env_state, ocurrent_index) # policy from separated python file 
@@ -461,6 +475,7 @@ def main():
     parser.add_argument("--policy", type=str, help="Python file that contains the policy, see treemaze_policy.py for an example")
     parser.add_argument("--random-nexts", default=False, action="store_true", help="Randomly initialize options and OOIs instead of obeying --subs and --nexts.")
     parser.add_argument("--humanfeedback", type=str, help="Python file that contains a simulated human feedback function, see simHuman.py for an example")
+    parser.add_argument("--humanProbas", type=str, help="Python file that contains a simulated human giving a probabilities to actions and options, used for policy shaping")
     parser.add_argument("--extra-args", type=str, help="Additional arguments (anything) passed to the policy, if any")
 
     # Next and Sub from arguments
@@ -482,6 +497,7 @@ def main():
     policy = lambda state, option: None
     shaping = lambda o, old, new: (0.0, None)
     humanfeedback = lambda option, state, timestep: (0.0, None)
+    humanProbas = lambda state, option : None
 
     if args.policy is not None:
         data = open(args.policy, 'r').read()
@@ -507,9 +523,18 @@ def main():
         
         if 'humanfeedback' in d:
             humanfeedback = d['humanfeedback']
+            
+    if args.humanProbas is not None:
+        data = open(args.humanProbas, 'r').read()
+        compiled = compile(data, args.humanProbas, 'exec')
+        d = {}
+        exec(compiled, d)
+        
+        if 'humanProbas' in d:
+            humanProbas = d['humanProbas']
 
     # Instantiate learner
-    learner = Learner(args, f_next, f_sub, f_alias, policy, shaping, humanfeedback)
+    learner = Learner(args, f_next, f_sub, f_alias, policy, shaping, humanfeedback, humanProbas)
 
     # Load weights if needed
     if args.load is not None:
