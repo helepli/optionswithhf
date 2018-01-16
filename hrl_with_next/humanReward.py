@@ -1,41 +1,8 @@
-import random
+import optionInfos
+# human reward functions
 
-height = 29
-width = 27
-# this must be hardcoded...?
 
-OPTION_GOALS = [
-    (width//3, (width-1)//2), # first door, top center --> option 0
-    ((height-1)//2, (width-1)//3), # middle left --> opt 1
-    ((height-1)//2, (2*width)//3), # middle right --> opt 2
-    (((2*width)//3)+1, (width-1)//2), # last door, down center --> opt 3
-    (height-1, width-1), # goal --> opt 4
-]
-
-def humanProbas(state, option): # for policy shaping with simulated human feedback
-    probas = [0.05] * 4 + [0.0] * 5 + [0.00] * 9    # 4 actions, 5 options, with or without termination 
-    
-    y = state // width
-    x = state % width
-
-    if option == -1:
-        # Top-level policy, advice on options
-        if y < OPTION_GOALS[0][0]:
-            # High in the room, go to the first door
-            probas[4 + 0] = 1.0 
-        elif y < OPTION_GOALS[3][0]:
-            # Middle room, go to the bottom center door
-            probas[4 + 3] = 1.0
-        else:
-            # Bottom, go to the goal
-            probas[4 + 4] = 1.0
-    
-    if random.random() < 0.1:
-        return probas
-    else:
-        return None
-
-def humanfeedback1(option, state, timestep):    
+def humanreward1(option, state, timestep):    
     if option != -1 and timestep == 1: # sort of feedback on the options. Only one feedback at the very beginning of the option.
         if option == 1 or option == 2:
             return (-0.5, None) # punishment for chosing options I don't like
@@ -60,7 +27,7 @@ def humanfeedback1(option, state, timestep):
         return (0, None)
     
     
-def humanfeedback(option, state, timestep):  # feedback of -50 on wrong options, 0 otherwise, based on state
+def humanreward(option, state, timestep):  # feedback of -50 on wrong options, 0 otherwise, based on state
     if option != -1 and timestep == 1: # sort of feedback on the options. Only one feedback at the very beginning of the option.
         state_y = state // width
         state_x = state % width
@@ -80,7 +47,4 @@ def humanfeedback(option, state, timestep):  # feedback of -50 on wrong options,
             return (0, None)
     else:
         return (0, None) # good options, no feedback
-    
-    
-    
     
