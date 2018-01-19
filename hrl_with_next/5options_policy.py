@@ -1,11 +1,167 @@
-import numpy as np
-import optionInfos
+from optionInfos import *
 
+option_policies = [
+    [
+        'RRRRRRRRRRRRRBLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRBLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRBLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRBLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRBLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRBLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRBLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRBLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRbLLLLLLLLLLLLL',
+        '-------------B-------------',
+        '        |RRRRtLLLL|        ',
+        '        |RRRRTLLLL|        ',
+        '        |RRRRTLLLL|        ',
+        '        |RRRRTLLLL|        ',
+        '        RRRRRTLLLLL        ',
+        '        |RRRRTLLLL|        ',
+        '        |RRRRTLLLL|        ',
+        '        |RRRRTLLLL|        ',
+        '        |RRRRTLLLL|        ',
+        '-------------T-------------',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+    ],
+    [
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '-------------B-------------',
+        'BBBBBBBB|BBBBBBBBB|        ',
+        'BBBBBBBB|BBBBBBBBB|        ',
+        'BBBBBBBB|BBBBBBBBB|        ',
+        'BBBBBBBB|BBBBBBBBB|        ',
+        'RRRRRRRrRlLLLLLLLLL        ',
+        'TTTTTTTT|TTTTTTTTT|        ',
+        'TTTTTTTT|TTTTTTTTT|        ',
+        'TTTTTTTT|TTTTTTTTT|        ',
+        'TTTTTTTT|TTTTTTTTT|        ',
+        '-------------T-------------',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+    ],
+    [
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '-------------B-------------',
+        '        |BBBBBBBBB|BBBBBBBB',
+        '        |BBBBBBBBB|BBBBBBBB',
+        '        |BBBBBBBBB|BBBBBBBB',
+        '        |BBBBBBBBB|BBBBBBBB',
+        '        RRRRRRRRRrLlLLLLLLL',
+        '        |TTTTTTTTT|TTTTTTTT',
+        '        |TTTTTTTTT|TTTTTTTT',
+        '        |TTTTTTTTT|TTTTTTTT',
+        '        |TTTTTTTTT|TTTTTTTT',
+        '-------------T-------------',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+    ],
+    [
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '-------------B-------------',
+        '        |RRRRBLLLL|        ',
+        '        |RRRRBLLLL|        ',
+        '        |RRRRBLLLL|        ',
+        '        |RRRRBLLLL|        ',
+        '        RRRRRBLLLLL        ',
+        '        |RRRRBLLLL|        ',
+        '        |RRRRBLLLL|        ',
+        '        |RRRRBLLLL|        ',
+        '        |RRRRbLLLL|        ',
+        '-------------B-------------',
+        'RRRRRRRRRRRRRtLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRTLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRTLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRTLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRTLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRTLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRTLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRTLLLLLLLLLLLLL',
+        'RRRRRRRRRRRRRTLLLLLLLLLLLLL',
+    ],
+    [
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '                           ',
+        '------------- -------------',
+        '        |         |        ',
+        '        |         |        ',
+        '        |         |        ',
+        '        |         |        ',
+        '                           ',
+        '        |         |        ',
+        '        |         |        ',
+        '        |         |        ',
+        '        |         |        ',
+        '-------------B-------------',
+        'BBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        'BBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        'BBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        'BBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        'BBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        'BBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        'BBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        'BBBBBBBBBBBBBBBBBBBBBBBBBBb',
+        'RRRRRRRRRRRRRRRRRRRRRRRRRrR',
+    ],
+]
 
 
 def policy(state, option):
     probas = [0.05] * 4 + [0.0] * 5 + [0.00] * 9    # 4 actions, 5 options, with or without termination 
-    
+
     y = state // width
     x = state % width
 
@@ -23,21 +179,25 @@ def policy(state, option):
             # Bottom, go to the goal
             probas[4 + 4] = 1.0
     else:
-        # hardcoded option policies
-        # Return the action that goes the closest to the goal
-        distances = [
-            distance_from_goal_xy(x, y - 1, option) + 0.1,
-            distance_from_goal_xy(x, y + 1, option) + 0.1,
-            distance_from_goal_xy(x - 1, y, option),
-            distance_from_goal_xy(x + 1, y, option),
-        ]
-        
-        # Take the action that brings us the closest to the option goal
-        end_proba = float(args.extra_args) if args.extra_args else 0.01 # fixed at best value
-        probas[np.argmin(distances)] = 1.0 - end_proba
-        probas[np.argmin(distances) + 9] = end_proba
-        
-        
+        command = option_policies[option][y][x]
+
+        if command == ' ':
+            # No policy defined here, act randomly and terminate
+            probas[9:13] = [1.0] * 4
+        else:
+            terminate = (command in 'tblr')
+            action_index = {
+                'T': 0,
+                'B': 1,
+                'L': 2,
+                'R': 3
+            }[command.upper()]
+
+            if terminate:
+                probas[action_index + 9] = 1.0  # Execute the correct action and terminate right after the goal
+            else:
+                probas[action_index] = 1.0
+
     return probas
 
 

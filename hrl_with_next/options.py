@@ -358,7 +358,7 @@ class Learner(object):
             oallowed = self.make_oallowed(allowed_indices)
             
             humanprobas = self._humanprobas(env_state, ocurrent_index) # human policy shaping from simHuman.py, vector of (#actions + #options) *2
-            if humanprobas == None:
+            if humanprobas is None:
                 humanprobas = [1.0/self._total_actions] * self._total_actions
             humanprobas = np.array(humanprobas)
             
@@ -375,7 +375,7 @@ class Learner(object):
                 probas /= np.sum(probas)
             else:
                 probas, value = self.predict_probas(state)
-                #probas = (probas * human_probas) / np.sum(probas * human_probas)
+                probas = (probas * humanprobas) / np.sum(probas * humanprobas)
 
             option = np.random.choice(self._total_actions, p=probas)
             

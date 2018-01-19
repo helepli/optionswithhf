@@ -1,29 +1,53 @@
 import random
-import optionInfos
+from optionInfos import *
+
+toplevel_policy = [
+    '000000000000000000000000000',
+    '000000000000000000000000000',
+    '000000000000000000000000000',
+    '000000000000000000000000000',
+    '000000000000000000000000000',
+    '000000000000000000000000000',
+    '000000000000000000000000000',
+    '000000000000000000000000000',
+    '000000000000000000000000000',
+    '-------------3-------------',
+    '11111111|333333333|22222222',
+    '11111111|333333333|22222222',
+    '11111111|333333333|22222222',
+    '11111111|333333333|22222222',
+    '111111113333333333322222222',
+    '11111111|333333333|22222222',
+    '11111111|333333333|22222222',
+    '11111111|333333333|22222222',
+    '11111111|333333333|22222222',
+    '-------------4-------------',
+    '444444444444444444444444444',
+    '444444444444444444444444444',
+    '444444444444444444444444444',
+    '444444444444444444444444444',
+    '444444444444444444444444444',
+    '444444444444444444444444444',
+    '444444444444444444444444444',
+    '444444444444444444444444444',
+    '444444444444444444444444444',
+]
 
 
 def humanProbas(state, option): # for policy shaping with simulated human feedback
-    probas = [0.05] * 4 + [0.0] * 5 + [0.00] * 9    # 4 actions, 5 options, with or without termination 
-    
+    probas = [0.0] * 4 + [0.0] * 5 + [0.0] * 9      # 4 actions, 5 options, with or without termination 
+
     y = state // width
     x = state % width
 
     if option == -1:
-        # Top-level policy, advice on options
-        if y < OPTION_GOALS[0][0]:
-            # High in the room, go to the first door
-            probas[4 + 0] = 1.0 
-        elif y < OPTION_GOALS[3][0]:
-            # Middle room, go to the bottom center door
-            probas[4 + 3] = 1.0
-        else:
-            # Bottom, go to the goal
-            probas[4 + 4] = 1.0
-    
-    if random.random() < 0.1:
-        return probas
-    else:
-        return None
+        target = int(toplevel_policy[y][x])
+        probas[4 + target] = 1.0
+
+        if random.random() < 0.1:
+            return probas
+
+    return None
 
 
     

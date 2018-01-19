@@ -1,4 +1,4 @@
-
+import numpy as np
 # common infos and functions to 5options_policy, 5options_shaping, humanProbas, humanReward
 
 

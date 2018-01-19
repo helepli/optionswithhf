@@ -1,5 +1,4 @@
-import numpy as np
-import optionInfos
+from optionInfos import *
 
 
 def shaping(option, old_state, new_state):
