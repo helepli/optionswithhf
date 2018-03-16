@@ -41,6 +41,7 @@ class myGrid(gym.Env):
         
         self._max_x = 0
         self._max_y = 0
+        self._timestep = 0
         self.reset()
         
 
@@ -98,7 +99,7 @@ class myGrid(gym.Env):
     def reset(self):
         """ Reset the environment and return the initial state number
         """
-        print(self._max_x, self._max_y, file=sys.stderr)
+        print(self._max_x, self._max_y, self._timestep, file=sys.stderr)
         sys.stderr.flush()
 
         # Put the agent in the bottom-left corner of the environment
@@ -155,7 +156,7 @@ class myGrid(gym.Env):
         #self.displayPosition()
         
         # Return the current state, a reward and whether the episode terminates
-        return self.current_state(), REWARD[cell], TERMINAL[cell] or self._timestep > 500, {}
+        return self.current_state(), REWARD[cell], TERMINAL[cell] or (self._timestep > 500), {}
 
     def current_state(self):
         return (self._y * self.x) + self._x

@@ -14,6 +14,9 @@ sys.path.append(os.path.abspath('..'))
 import gym_envs.myGrid
 
 
+#BOUNDEDHR = True
+
+
 epsilon = 1e-8
 LSTM_TIMESTEPS = 30
 # H: global append to file to store option switches from one episode to an other.
@@ -100,6 +103,7 @@ class Learner(object):
 
         # Lists for policy gradient
         self._experiences = []
+        self._num_toplevel = 0
 
     def make_shape(self, x):
         """ Return a 2D (LSTM) or 1D (no LSTM) shape
@@ -113,10 +117,11 @@ class Learner(object):
         """ Initialize a simple multi-layer perceptron for policy gradient
         """
         # Useful functions
-        def make_probas(pi, oallowed):
+        def make_probas(pi, oallowed, human):
             # Probability distribution constrained on oallowed
             x_exp = K.sigmoid(pi)
             x_exp *= oallowed
+            x_exp *= human                  # Add human policy shaping
             return x_exp / K.sum(x_exp)
 
         def make_function(input, noutput, activation='sigmoid'):
@@ -134,14 +139,11 @@ class Learner(object):
         state = keras.layers.Input(shape=self.make_shape(num_state_var))
         ocurrent = keras.layers.Input(shape=self.make_shape(self._num_options))
         humanprobas = keras.layers.Input(shape=(self._total_actions,))     # put human proba as input of the NN for policy shaping
-        
         oallowed = keras.layers.Input(shape=(self._total_actions,))              # Mask for options that are allowed to run
-        
-        
-        stateoptionhumanprobas = keras.layers.concatenate([state, ocurrent, humanprobas]) # let's concantenate these three inputs: state, current option and human probas over the actions&options
+
         stateoption = keras.layers.concatenate([state, ocurrent])
-        pi = make_function(stateoptionhumanprobas, self._total_actions, 'linear')          # Option to execute given current state and option and human probas
-        probas = keras.layers.core.Lambda(make_probas, output_shape=(self._total_actions,), arguments={'oallowed': oallowed})(pi)
+        pi = make_function(stateoption, self._total_actions, 'linear')          # Option to execute given current state and current option
+        probas = keras.layers.core.Lambda(make_probas, output_shape=(self._total_actions,), arguments={'oallowed': oallowed, 'human': humanprobas})(pi)
         critic = make_function(stateoption, 1, 'linear')                        # Expected value of a state-action -> do we put human proba in that too???
 
         self._model = keras.models.Model(inputs=[state, ocurrent, oallowed, humanprobas], outputs=[probas])
@@ -318,16 +320,22 @@ class Learner(object):
     def execute_option(self, ocurrent_index, recur=0, env_state=None):
         """ Execute an option on the environment
         """
-        #print("ocurrent_index ", ocurrent_index)
         
         # Prevent stack overflows
         if recur > 100:
             return (env_state, -1000, True)
+        
+        #global BOUNDEDHR
+    
 
         if env_state is None:
             # Reset the environment at the beginning of the episode
             env_state = self._env.reset()
+            
+            print('num toplevel', self._num_toplevel)
+            
             self._prev_states = []
+            self._num_toplevel = 0
 
         oreturned_index = None
         ocurrent = self.mask(ocurrent_index)
@@ -358,15 +366,19 @@ class Learner(object):
             oallowed = self.make_oallowed(allowed_indices)
             
             humanprobas = self._humanprobas(env_state, ocurrent_index) # human policy shaping from simHuman.py, vector of (#actions + #options) *2
+            C = 1.0
             if humanprobas is None:
                 humanprobas = [1.0/self._total_actions] * self._total_actions
+                C = 0.1
             humanprobas = np.array(humanprobas)
-            
             
             state = self.make_state(self.encode_state(env_state), ocurrent, oallowed, humanprobas) # ---> humanprobas put in state, then put in NN
             overriden = False
 
-            policy_probas = self._policy(env_state, ocurrent_index) # policy from separated python file 
+            policy_probas = self._policy(env_state, ocurrent_index) # policy from separated python file
+            
+            if recur == 0:
+                self._num_toplevel += 1
 
             if policy_probas is not None:
                 value = 0.0
@@ -375,7 +387,6 @@ class Learner(object):
                 probas /= np.sum(probas)
             else:
                 probas, value = self.predict_probas(state)
-                probas = (probas * humanprobas) / np.sum(probas * humanprobas)
 
             option = np.random.choice(self._total_actions, p=probas)
             
@@ -428,19 +439,21 @@ class Learner(object):
 
             # Add the reward of the option (options can do reward shaping)
             additional_reward, d = self._shaping(ocurrent_index, old_env_state, env_state)
-            human_reward, d2 = self._humanreward(ocurrent_index, env_state, j) # j = timestep in this option. Human gives feedback once every 10-20 timesteps, let's say
-
+            
+            #human_reward, d2 = self._humanreward(ocurrent_index, env_state, j, self._env) # if self._env._timestep: Actual timestep (max 500).  If j: j = timestep in this option. HR on the first timestep of a chosen option
+            human_reward, d2 = self._humanreward(option, env_state, j, self._env)
+            
             if d is not None:
                 end |= d
-            
+                
             if d2 is not None:
                 end |= d2
 
             # Update the experience with its reward
            
-           
-            cumulative_reward += reward + ignored_reward
+            cumulative_reward += reward + ignored_reward 
             e.reward = reward + additional_reward + human_reward
+            
             
         
         
@@ -500,7 +513,7 @@ def main():
     # Load predefined policy if needed
     policy = lambda state, option: None
     shaping = lambda o, old, new: (0.0, None)
-    humanreward = lambda option, state, timestep: (0.0, None)
+    humanreward = lambda option, state, timestep, env: (0.0, None)
     humanprobas = lambda state, option : None
     
     
@@ -572,11 +585,23 @@ def main():
 
     try:
         avg = 0.0
+        elapsed_episodes = 0
+        
+        #global BOUNDEDHR
 
         for i in range(args.episodes):
-            # HHHHHHHHH write current option in each experience of an episode
-            #print("------episode n°: ", i, file=F2) 
-                 
+            #if i < 800:
+                #if BOUNDEDHR == True and elapsed_episodes == 200:
+                    #BOUNDEDHR = False
+                    #elapsed_episodes = 0
+                #elif BOUNDEDHR == False and elapsed_episodes == 400:
+                    #BOUNDEDHR = True
+                    #elapsed_episodes = 0
+            
+                #elapsed_episodes += 1
+            #else:
+                #BOUNDEDHR = False
+                
             _, reward, done = learner.execute_option(-1)
 
             if i == 0:
@@ -592,6 +617,9 @@ def main():
             print("Cumulative reward:", reward, "; average reward:", avg, file=f)
             print(args.name, "Cumulative reward:", reward, "; average reward:", avg)
             f.flush()
+            
+        
+        
     except KeyboardInterrupt:
         pass
 

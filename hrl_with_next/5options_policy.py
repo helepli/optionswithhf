@@ -183,7 +183,8 @@ def policy(state, option):
 
         if command == ' ':
             # No policy defined here, act randomly and terminate
-            probas[9:13] = [1.0] * 4
+            probas[9:13] = [1.0] * 4 
+            #probas[0:4] = [1.0] * 4 # uwo: unstopped wrong options. Keep on acting randomly to make more penalties, until the option eventually ends
         else:
             terminate = (command in 'tblr')
             action_index = {
