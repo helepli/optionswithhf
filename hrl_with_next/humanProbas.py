@@ -1,9 +1,11 @@
 import random
 from optionInfos import *
 
+GIVING = 0.005 # proba og giving any advice to the agent
+
 RIGHT = 0.0 # proba right option adviced by human
 RANDOM = 0.0 # proba random option adviced by human
-WRONG = 0.2 # proba wrong option adviced
+WRONG = 1.0 # proba wrong option adviced
 INTERVENTIONS = 0
 
 toplevel_policy = [
@@ -46,6 +48,7 @@ toplevel_policy = [
 def humanprobas(state, option): # policy shaping on options only, gives proba=1 to correct option given the situation  
     probas = [0.0] * 18      # 4 actions, 5 options, with or without termination 
     
+    global GIVING
     global RIGHT
     global RANDOM
     global WRONG
@@ -59,25 +62,23 @@ def humanprobas(state, option): # policy shaping on options only, gives proba=1 
         coin = random.random()
         target = int(toplevel_policy[y][x])
         
-        if coin < RIGHT + RANDOM + WRONG :
+        if coin < GIVING:
+            
+            advice = np.random.choice( ['right', 'random', 'wrong'], p=[RIGHT, RANDOM, WRONG])
             
             #RIGHT = RIGHT * 0.995 # annealing
         
-            if coin < RIGHT:
+            if advice == 'right':
                 probas[4 + target] = 1.0
             
-            elif coin > RIGHT and coin < RIGHT + RANDOM: # put proba 1 to random option
+            elif advice == 'random': # put proba 1 to random option
                 probas[random.randint(len(probas)-14, len(probas)-10)] = 1.0
             
-            elif coin > RIGHT + RANDOM and coin < RIGHT + RANDOM + WRONG: # put proba 1 to anything but the right option
-                #wrongTarget = random.randint(len(probas)-14, len(probas)-10)
-                #while wrongTarget == target:
-                    #wrongTarget = random.randint(len(probas)-14, len(probas)-10)
-                #probas[wrongTarget] = 1.0
+            elif advice == 'wrong': # put proba 1 to anything but the right option
                 probas[5] = 1.0 # always the same option, the human is lazy
                 
             INTERVENTIONS += 1
-            print('Interventions so far', INTERVENTIONS, RIGHT)
+            print('Interventions so far', INTERVENTIONS, GIVING)
             return probas
         
         else:
