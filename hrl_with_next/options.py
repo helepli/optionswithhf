@@ -23,12 +23,13 @@ LSTM_TIMESTEPS = 30
 #F2 = open('optionSwitches_hf', 'a')  
 
 class Experience(object):
-    def __init__(self, state, action, value, overriden):
+    def __init__(self, state, action, value, overriden, has_human_probas):
         """ In <state>, executing <option>, <action> has been choosen, which lead to <reward>
         """
         self.state = state
         self.action = action
         self.overriden = overriden
+        self.has_human_probas = has_human_probas
         self.value = value              # Expected value of state-ocurrent
         self.reward = 0.0               # The reward is set once it is known
         self.interrupt = False          # Interrupt reward chain at option boundaries
@@ -238,7 +239,8 @@ class Learner(object):
         source_oallowed = np.zeros((N, self._total_actions))
         source_humanprobas = np.zeros((N, self._total_actions))
         source_state = np.zeros((N,) + self.make_shape(self._state_vars))
-        source_C = np.zeros((N, 1))  
+        source_C = np.zeros((N, 1))
+        sample_weights = np.zeros((N,))
 
         # Compute cumulative rewards
         cumulative_rewards = np.zeros(shape=(N,))
@@ -270,6 +272,7 @@ class Learner(object):
             source_C[i] = C
             source_ocurrent[i, :] = ocurrent
             target_option[i, e.action] = value
+            sample_weights[i] = 1.0 if e.has_human_probas else 0.01
 
         # Build source and target arrays for the critic
         target_critic_value = cumulative_rewards.reshape((N, 1))
@@ -292,7 +295,7 @@ class Learner(object):
         self._hmodel.fit(
             [source_state, source_ocurrent],   
             [source_humanprobas],   # The target/output is human probas (should be only taking humanprobas when delivered by real human!)
-            sample_weight=source_C.flatten(),
+            sample_weight=sample_weights,
             batch_size=32,
             epochs=10,
             verbose=0
@@ -396,10 +399,12 @@ class Learner(object):
             
             humanprobas = self._humanprobas(env_state, ocurrent_index) # human policy shaping from simHuman.py, vector of (#actions + #options) *2
             C = self._C_human # confidence in the reliability of the teacher
+            has_human_probas = humanprobas is not None
+
             if humanprobas is None:
                 humanprobas = self.predict_hprobas(self.encode_state(env_state), ocurrent)
-                #humanprobas = [1.0/self._total_actions] * self._total_actions
                 C = self._C_nnet
+
             humanprobas = np.array(humanprobas)
             
             state = self.make_state(self.encode_state(env_state), ocurrent, oallowed, humanprobas, C) # ---> humanprobas put in state, then put in NN
@@ -426,7 +431,8 @@ class Learner(object):
                 state,
                 option,
                 value,
-                overriden
+                overriden,
+                has_human_probas
             )
             self._experiences.append(e)
 

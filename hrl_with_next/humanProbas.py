@@ -3,9 +3,9 @@ from optionInfos import *
 
 GIVING = 0.005 # proba og giving any advice to the agent
 
-RIGHT = 0.0 # proba right option adviced by human
+RIGHT = 0.6 # proba right option adviced by human
 RANDOM = 0.0 # proba random option adviced by human
-WRONG = 1.0 # proba wrong option adviced
+WRONG = 0.4 # proba wrong option adviced
 INTERVENTIONS = 0
 
 toplevel_policy = [
